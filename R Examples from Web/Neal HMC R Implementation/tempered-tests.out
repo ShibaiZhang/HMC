@@ -1,0 +1,236 @@
+
+R version 2.13.1 (2011-07-08)
+Copyright (C) 2011 The R Foundation for Statistical Computing
+ISBN 3-900051-07-0
+Platform: i686-pc-linux-gnu (32-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # TESTS USING TEMPERED HMC ON A MIXTURE DISTRIBUTION.
+> #
+> # Radford M. Neal, 2012.
+> 
+> source("mcmc.r")
+> source("utilities.r")
+> source("metropolis.r")
+> source("basic_hmc.r")
+> source("tempered_hmc.r")
+> source("pupdate.r")
+> source("mix.r")
+> 
+> # --------------------------------------------------------------------
+> 
+> # FUNCTION TO LOOK AT RESULTS OF THE TESTS BELOW.
+> 
+> mix.look <- function (r, thin=1)
++ { if (is.list(r$q))
++   { q1 <- r$q[[1]]
++     q2 <- r$q[[2]]
++   }
++   else
++   { q1 <- r$q[,1]
++     q2 <- r$q[,2]
++   }
++   q1 <- q1[seq(1,length(q1),by=thin)]
++   q2 <- q2[seq(1,length(q2),by=thin)]
++   cat("m1:",round(mean(q1),4)," m2:",round(mean(q2),3),
++       " v1:",round(var(q1),4)," v2:",round(var(q2),3),
++       " act1:",round (2*sum(acf(q1,plot=FALSE,lag.max=200)$acf)-1, 1),
++       " act2:",round (2*sum(acf(q2,plot=FALSE,lag.max=200)$acf)-1, 1),
++       "\n")
++   plot(q1,q2,pch=".")
++ }
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # FUNCTIONS FOR SAMPLING THE MIXTURE DISTRIBUTION IN VARIOUS WAYS.  
+> 
+> 
+> # SAMPLE MIXTURE USING JOINT METROPOLIS UPDATES.
+> 
+> jmet_mix <- function (iterations, step, ...)
++ {
++   mcmc (lpr_mix, c(a=0, b=0), iterations, 
++         list (metropolis, step=step, rep=20),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE MIXTURE USING STANDARD HMC.
+> 
+> hmc_mix <- function (iterations, step, nsteps=20, ...)
++ {
++   mcmc (lpr_mix, c(a=0, b=0), iterations, 
++         list (basic_hmc, step=step, nsteps=nsteps),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE MIXTURE USING TEMPERED HMC.
+> 
+> thmc_mix <- function (iterations, step, nsteps=20, temper, ...)
++ {
++   mcmc (lpr_mix, c(a=0, b=0), iterations, 
++         list (tempered_hmc, step=step, nsteps=nsteps, temper=temper),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE MIXTURE USING TEMPERED HMC + METROPOLIS.
+> 
+> mthmc_mix <- function (iterations, step, nsteps=20, temper, ...)
++ {
++   mcmc (lpr_mix, c(a=0, b=0), iterations, 
++         list (tempered_hmc, step=step, nsteps=nsteps, temper=temper),
++         list (metropolis, step=0.3, rep=3),
++         ...
++   )
++ }
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # SCRIPT FOR RUNNING THE TESTS.
+> 
+> formals(lpr_mix)$p1 <- 0.5
+> formals(lpr_mix)$mu1 <- c(0,0)
+> formals(lpr_mix)$mu2 <- c(10,10)
+> formals(lpr_mix)$inv.cov1 <- diag(2)
+> formals(lpr_mix)$inv.cov2 <- 0.5*diag(2)
+> 
+> it <- 10000
+> 
+> cat("\njmet:\n");
+
+jmet:
+> mix.look (rjmet <- jmet_mix (it, 3)); cat("\n")
+m1: 4.3007  m2: 4.283  v1: 25.909  v2: 25.656  act1: 170.4  act2: 169.5 
+
+> 
+> cat("\nhmc:\n");
+
+hmc:
+> mix.look (rhmc <- hmc_mix (it, 1)); cat("\n")
+m1: 0.0025  m2: 0.002  v1: 1.0159  v2: 1.013  act1: 0.2  act2: 0.7 
+
+> 
+> cat("\nthmc1:\n");
+
+thmc1:
+> mix.look (rthmc1 <- thmc_mix (it, 1, temper=1.1)); cat("\n")
+m1: 2.1693  m2: 2.163  v1: 18.2068  v2: 18.15  act1: 351.1  act2: 350.2 
+
+> 
+> cat("\nthmc2:\n");
+
+thmc2:
+> mix.look (rthmc2 <- thmc_mix (it, 1, temper=1.2)); cat("\n")
+m1: 4.9572  m2: 4.946  v1: 26.5221  v2: 26.585  act1: 77  act2: 78 
+
+> 
+> cat("\nthmc3:\n");
+
+thmc3:
+> mix.look (rthmc3 <- thmc_mix (it, 1, temper=1.4)); cat("\n")
+m1: 5.0712  m2: 5.043  v1: 26.4896  v2: 26.676  act1: 7.2  act2: 6.2 
+
+> 
+> cat("\nthmc4:\n");
+
+thmc4:
+> mix.look (rthmc4 <- thmc_mix (it, 1, temper=1.6)); cat("\n")
+m1: 4.9671  m2: 5.001  v1: 26.9486  v2: 26.542  act1: 4.3  act2: 4.8 
+
+> 
+> cat("\nthmc5:\n");
+
+thmc5:
+> mix.look (rthmc5 <- thmc_mix (it, 1, temper=1.9)); cat("\n")
+m1: 4.6913  m2: 4.716  v1: 26.5735  v2: 26.209  act1: 5.7  act2: 6.1 
+
+> 
+> cat("\nthmc6:\n");
+
+thmc6:
+> mix.look (rthmc6 <- thmc_mix (it, 1, temper=2.1)); cat("\n")
+m1: 4.843  m2: 4.922  v1: 26.9774  v2: 27.284  act1: 35.5  act2: 33.8 
+
+> 
+> cat("\nthmc7:\n");
+
+thmc7:
+> mix.look (rthmc7 <- thmc_mix (it, 1, temper=2.5)); cat("\n")
+m1: 5.3741  m2: 5.306  v1: 25.7804  v2: 25.216  act1: 20.7  act2: 17.2 
+
+> 
+> cat("\nmthmc5:\n");
+
+mthmc5:
+> mix.look (rmthmc5 <- mthmc_mix (it, 1, temper=1.9)); cat("\n")
+m1: 4.8939  m2: 4.879  v1: 26.4422  v2: 26.717  act1: 6  act2: 5.8 
+
+> 
+> cat("\nmtlmc:\n");
+
+mtlmc:
+> mix.look (rmtlmc <- mthmc_mix (it, 1, nsteps=1, temper=36)); cat("\n")
+m1: 5.4396  m2: 5.412  v1: 26.9128  v2: 26.455  act1: 125.7  act2: 126 
+
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # PRODUCE PLOT AS IN FIGURE 9 OF "MCMC USING HAMILTONIAN DYNAMICS".
+> 
+> par(mfrow=c(2,2), mar=c(4,4,1,1), mgp=c(2,0.7,0))
+> 
+> ss <- 0.3
+> ns <- 200
+> temper <- 1.04
+> 
+> t <- tempered_hmc (lpr_mix, 
++                    step=ss, nsteps=ns, temper=temper,
++                    initial=c(-0.4,-0.9), initial.p=c(0.7,-0.9),
++                    return.traj=TRUE)
+> 
+> plot (0:ns, t$traj.H, ylim=c(0,62),
++       pch=20, xlab="Leapfrog step number", ylab="Value of Hamiltonian")
+> 
+> plot (t$traj.q[,1], t$traj.q[,2], type="l", xlim=c(-10,25), ylim=c(-10,25),
++       xlab="Position coordinate 1", ylab="Position coordinate 2")
+> 
+> t1 <- t
+> 
+> t <- tempered_hmc (lpr_mix, 
++                    step=ss, nsteps=ns, temper=temper,
++                    initial=c(0.1,1.0), initial.p=c(0.5,0.8),
++                    return.traj=TRUE)
+> 
+> print(t$traj.H[ns+1]-t$traj.H[1])
+[1] -0.1493229
+> 
+> plot (0:ns, t$traj.H, ylim=c(0,62),
++       pch=20, xlab="Leapfrog step number", ylab="Value of Hamiltonian")
+> 
+> plot (t$traj.q[,1], t$traj.q[,2], type="l", xlim=c(-10,25), ylim=c(-10,25),
++       xlab="Position coordinate 1", ylab="Position coordinate 2")
+> 
+> t2 <- t
+> 
+> proc.time()
+    user   system  elapsed 
+ 932.998    2.268 3357.018 

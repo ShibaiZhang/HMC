@@ -1,0 +1,82 @@
+This directory contains a preliminary version of GRIMS, released 2012-06-07.
+
+  The contents of this directory are Copyright (c) 2011-2012 by Radford M. Neal.
+  
+  Permission is granted for anyone to copy, use, modify, or distribute these
+  programs and accompanying documents for any purpose, provided this copyright
+  notice is retained and prominently displayed, along with a note saying 
+  that the original programs are available from Radford Neal's web page, and 
+  note is made of any changes made to these programs.  These programs and 
+  documents are distributed without any warranty, express or implied.  As the
+  programs were written for research purposes only, they have not been tested 
+  to the degree that would be advisable in any important application.  All use
+  of these programs is entirely at the user's own risk.
+
+This software can be obtained from http://www.cs.utoronto.ca/~radford/GRIMS.html
+
+---------------------------------------------------------------------
+
+GRIMS - General R Interface for Markov Sampling - is an R package for
+performing MCMC simulations.  Distributions to sample from are defined
+using R functions, and Markov chain sampling methods are also defined
+by R functions.  R functions for some distributions and sampling
+methods are supplied with this package.
+
+This preliminary version is not yet structured as a proper R package,
+and has only a few example distributions and example sampling methods.
+It may also have lots of bugs.  It is being released at this point
+mainly for discussion.
+
+Documentation for GRIMS is in several .txt files.  The starting point
+is overview.txt.  The example distributions and update functions below
+are documented in comments at the start of the .r files.
+
+Distributions definitions provided as examples:
+
+  Multivariate normal distributions - mvn.r
+
+  Mixture of two multivariate normal distributions - mix.r
+
+  Bayesian logistic regression model - logistic.r
+
+    This definition omit some facilities that would be present in a
+    final implementation of a logistic regression model.  (Some of these
+    omissions are deliberate, to allow testing that the framework handles
+    functions defining distribution which don't implement all features.)
+
+MCMC update functions provided:
+
+  Random-walk Metropolis updates with normal proposals - metropolis.r
+
+  Gibbs sampling (currently for normal distributions only) - gibbs.r
+
+  Basic Hamiltonian Monte Carlo (HMC) - basic_hmc.r and pupdate.r
+  HMC with windows of state for acceptance/rejection - windowed_hmc.r
+  HMC with bounds on the range of variables- bounded_hmc.r
+  HMC with tempering - tempered_hmc.r
+
+Test scripts for the sampling methods on these distributions are in
+mvn-tests.r, bounded-tests.r, windowed-tests.r, tempered-tests.r, and
+logistic-tests.r.  These may be "sourced" to run the tests (assuming
+that the other .r files are in the current directory).  
+
+The tempered-tests.r script also produces the plot seen in Figure 9
+of my review of "MCMC Using Hamiltonian Dynamics", in the Handbook
+of Markov Chain Monte Carlo.
+
+---------------------------------------------------------------------
+
+Release history:
+
+  2012-06-07:  Added bounded_hmc, windowed_hmc, and tempered_hmc update
+               functions.  Added test scripts for these, and modified
+               other test scripts.  Fixed some bugs, including some in 
+               mcmc regarding bounds, and did other cleanups of code and 
+               documentation.
+  2011-08-26:  Fixed a bug in which mcmc returned a modified 'updates'
+               list that then wouldn't work with more_mcmc.
+  2011-08-10:  Varous mods and bug fixes (including for one bug with 
+               rep>1 in metropolis, two bugs with lower and upper bound 
+               attributes of lpr functions).
+  2011-06-28:  Fixes bugs, adds Gibbs for normals, adds mvn tests.
+  2011-06-25:  First release

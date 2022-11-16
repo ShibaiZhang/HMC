@@ -1,0 +1,849 @@
+
+R version 2.13.1 (2011-07-08)
+Copyright (C) 2011 The R Foundation for Statistical Computing
+ISBN 3-900051-07-0
+Platform: i686-pc-linux-gnu (32-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+[Previously saved workspace restored]
+
+> # TESTS USING MULTIVARIATE NORMAL DISTRIBUTION.
+> #
+> # Radford M. Neal, 2012.
+> 
+> source("mcmc.r")
+> source("utilities.r")
+> source("singlevar.r")
+> source("metropolis.r")
+> source("basic_hmc.r")
+> source("pupdate.r")
+> source("gibbs.r")
+> source("mvn.r")
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # LPR FUNCTIONS FOR TEST PURPOSES.  The lpr_mvn and ilpr_mvn functions
+> # defined in mvn.r are used along with the two versions below, which 
+> # take a state that is a list, and which are meant solely for testing 
+> # the mcmc function.
+> 
+> 
+> # LIST VERSION OF LOG DENSITY FUNCTION. 
+> 
+> llpr_mvn <- function (value,grad=FALSE,inv.cov)
++ {
++   v <- c (value$a, value$b)
++ 
++   g <- - inv.cov %*% v
++   r <- t(v) %*% g / 2
++   if (grad)
++   { g <- as.vector(g)
++     attr(r,"grad") <- 
++       list (a=g[1:length(value$a)], b=g[(length(value$a)+1):length(v)])
++   }
++ 
++   r
++ }
+> 
+> 
+> # INCREMENTAL LIST VERSION OF LOG DENSITY FUNCTION.  
+> 
+> illpr_mvn <- function (value,grad=FALSE,ch.value,ch.elem,ch.pos,lpr.value,
++                        inv.cov)
++ {
++   v <- c (value$a, value$b)
++ 
++   if (missing(ch.value) || is.null(attr(lpr.value,"g")))
++   { g <- - inv.cov %*% v
++   }
++   else 
++   { if (!(ch.elem %in% c("a","b")))
++     { stop("Bad ch.elem argument")
++     }
++     if (missing(ch.pos))
++     { if (ch.elem=="a") 
++       { ch.pos <- 1:length(value$a)
++       }
++       else
++       { ch.pos <- (length(value$a)+1):length(v)
++       }
++     }
++     else
++     { if (ch.elem=="b")
++       { ch.pos <- ch.pos + length(value$a)
++       }
++     }
++     g <- attr(lpr.value,"g") - 
++            inv.cov[,ch.pos,drop=FALSE] %*% (ch.value-v[ch.pos])
++     v[ch.pos] <- ch.value
++   }
++ 
++   r <- t(v) %*% g / 2
++ 
++   g <- as.vector(g)
++   attr(r,"g") <- g
++   if (grad) 
++   { attr(r,"grad") <- 
++       list (a=g[1:length(value$a)], b=g[(length(value$a)+1):length(v)])
++   }
++ 
++   r
++ }
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # FUNCTIONS FOR SAMPLING A MULTIVARIATE NORMAL IN VARIOUS WAYS.  These
+> # are designed as tests for the mcmc function.
+> 
+> 
+> # SAMPLE FROM MULTIVARIATE NORMAL USING JOINT METROPOLIS UPDATES.
+> # Uses non-incremental lpr.
+> 
+> jmet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations, 
++         list (metropolis, step=step, rep=2),
++         list (metropolis, step=step/10),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE FROM MULTIVARIATE NORMAL USING JOINT METROPOLIS UPDATES.
+> # Uses list version of non-incremental lpr.
+> 
+> ljmet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (llpr_mvn, list(a=0, b=0), iterations, 
++         list (metropolis, step=step, rep=2),
++         list (metropolis, step=lapply(step,function(x)x/10)),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE FROM MULTIVARIATE NORMAL USING JOINT METROPOLIS UPDATES.
+> # Uses incremental lpr (non-incrementally).
+> 
+> ijmet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (ilpr_mvn, c(a=0, b=0), iterations, 
++         list (metropolis, step=step, rep=2),
++         list (metropolis, step=step/10),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE FROM MULTIVARIATE NORMAL USING JOINT METROPOLIS UPDATES.
+> # Uses list version of incremental lpr (non-incrementally).
+> 
+> iljmet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (illpr_mvn, list(a=0, b=0), iterations, 
++         list (metropolis, step=step, rep=2),
++         list (metropolis, step=lapply(step,function(x)x/10)),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE FROM MULTIVARIATE NORMAL USING SINGLE VARIABLE METROPOLIS UPDATES.
+> # Uses non-incremental lpr.
+> 
+> smet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations, 
++         list (singlevar, metropolis, step=step, rep=5),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE FROM MULTIVARIATE NORMAL USING SINGLE VARIABLE METROPOLIS UPDATES.
+> # Uses incremental lpr.
+> 
+> ismet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (ilpr_mvn, c(a=0, b=0), iterations, 
++         list (singlevar, metropolis, step=step, rep=5),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE USING SINGLE VARIABLE UPDATES WITHOUT USING SINGLEVAR.
+> # Uses non-incremental lpr.
+> 
+> omet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations,
++         1, list(metropolis, step=step, rep=5),
++         2, list(metropolis, step=step, rep=5),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE USING SINGLE VARIABLE UPDATES WITHOUT USING SINGLEVAR.
+> # Uses list version of non-incremental lpr.
+> 
+> lomet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (llpr_mvn, list(a=0, b=0), iterations,
++         "a", list(metropolis, step=step, rep=5),
++         "b", list(metropolis, step=step, rep=5),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE USING SINGLE VARIABLE UPDATES WITHOUT USING SINGLEVAR.
+> # Uses list version of incremental lpr.
+> 
+> ilomet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (illpr_mvn, list(a=0, b=0), iterations,
++         "a", list(metropolis, step=step, rep=5),
++         "b", list(metropolis, step=step, rep=5),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE WITH BOUNDS USING JOINT METROPOLIS UPDATES.
+> 
+> cmet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (structure(lpr_mvn,lower=-1,upper=c(Inf,2)), c(a=0, b=0), iterations, 
++         list (metropolis, step=step, rep=10),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE WITH BOUNDS USING JOINT METROPOLIS UPDATES.
+> # Uses list version.
+> 
+> lcmet_mvn <- function (iterations, step, ...)
++ {
++   mcmc (structure(llpr_mvn,lower=-1,upper=c(Inf,2)), list(a=0, b=0), iterations,
++         list (metropolis, step=step, rep=10),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE USING BASIC HAMILTONIAN MONTE CARLO WITH LONG TRAJECTORY.
+> 
+> bhmc_mvn <- function (iterations, step, rand.step=0, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations,
++         list(basic_hmc, step=step, nsteps=20, rand.step=rand.step),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE USING BASIC HAMILTONIAN MONTE CARLO WITH LONG TRAJECTORY.
+> # Uses list version of lpr function.
+> 
+> lbhmc_mvn <- function (iterations, step, ...)
++ {
++   mcmc (llpr_mvn, list(a=0, b=0), iterations,
++         list(basic_hmc, step=step, nsteps=20),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE USING BASIC HAMILTONIAN MONTE CARLO WITH LONG TRAJECTORY.
+> # Uses list version of incremental lpr function.
+> 
+> ilbhmc_mvn <- function (iterations, step, ...)
++ {
++   mcmc (illpr_mvn, list(a=0, b=0), iterations,
++         list(basic_hmc, step=step, nsteps=20),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE USING BASIC HAMILTONIAN MONTE CARLO WITH LONG TRAJECTORY.
+> # Keep around momentum.
+> 
+> pbhmc_mvn <- function (iterations, step, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations, initial.p = numeric(2),
++         pupdate, list(basic_hmc, step=step, nsteps=20),
++         ...
++   )
++ }
+> 
+> 
+> # GET TRAJECTORIES FROM BASIC HAMILTONIAN UPDATES.
+> 
+> bhmc_traj_mvn <- function (iterations, step, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations,
++         list(basic_hmc, step=step, nsteps=20, return.traj=TRUE),
++         rec = "traj.q", last="traj.H",
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE ONE VARIABLE AT A TIME USING HMC WITH ONE LEAPFROG STEP (LANGEVIN).
+> 
+> lhmc_mvn <- function (iterations, step, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations, rep=10,
++         1, list(basic_hmc, step=step),
++         2, list(basic_hmc, step=step),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE ONE VARIABLE AT A TIME USING HMC WITH ONE LEAPFROG STEP (LANGEVIN).
+> # Uses list version of incremental lpr function.
+> 
+> illhmc_mvn <- function (iterations, step, ...)
++ {
++   mcmc (illpr_mvn, list(a=0, b=0), iterations, rep=10,
++         "a", list(basic_hmc, step=step),
++         "b", list(basic_hmc, step=step),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE ONE VARIABLE AT A TIME USING HMC WITH ONE LEAPFROG STEP (LANGEVIN).
+> # Uses singlevar.
+> 
+> slhmc_mvn <- function (iterations, step, ...)
++ {
++   mcmc (llpr_mvn, list(a=0, b=0), iterations, rep=10,
++         list (singlevar, list(basic_hmc, step=step)),
++         ...
++   )
++ }
+> 
+> 
+> # NORMAL GIBBS SAMPLING. Uses non-incremental lpr.
+> 
+> gibbs_mvn <- function (iterations, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations, 
++         list (singlevar, gibbs_normal),
++         ...
++   )
++ }
+> 
+> 
+> # NORMAL GIBBS SAMPLING. Uses incremental lpr.
+> 
+> igibbs_mvn <- function (iterations, ...)
++ {
++   mcmc (ilpr_mvn, c(a=0, b=0), iterations, 
++         list (singlevar, gibbs_normal),
++         ...
++   )
++ }
+> 
+> 
+> # ADLER OVERRELAXATION. Uses non-incremental lpr.
+> 
+> over_mvn <- function (iterations, a, ...)
++ {
++   mcmc (lpr_mvn, c(a=0, b=0), iterations, 
++         list (singlevar, gibbs_normal, a=a),
++         ...
++   )
++ }
+> 
+> 
+> # ADLER OVERRELAXATION. Uses incremental lpr.
+> 
+> iover_mvn <- function (iterations, a, ...)
++ {
++   mcmc (ilpr_mvn, c(a=0, b=0), iterations, 
++         list (singlevar, gibbs_normal, a=a),
++         ...
++   )
++ }
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # FUNCTION TO LOOK AT RESULTS OF THE TESTS BELOW.
+> 
+> mvn.look <- function (r)
++ { if (is.list(r$q))
++   { q1 <- r$q[[1]]
++     q2 <- r$q[[2]]
++   }
++   else
++   { q1 <- r$q[,1]
++     q2 <- r$q[,2]
++   }
++   cat("m1:",round(mean(q1),4)," m2:",round(mean(q2),3),
++       " v1:",round(var(q1),4)," v2:",round(var(q2),3),
++       " corr:",round(cor(q1,q2),3),
++       " act+:",round (2*sum(acf(q1+q2,plot=FALSE,lag.max=100)$acf)-1, 1),
++       " act-:",round (2*sum(acf(q1-q2,plot=FALSE,lag.max=100)$acf)-1, 1),
++       "\n")
++   plot(q1,q2,pch=".")
++ }
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # SCRIPT FOR RUNNING THE TESTS.
+> 
+> inv.cov <- solve (matrix (c (0.5, 0.95, 0.95, 2.0), 2, 2))
+> 
+> formals(lpr_mvn)$inv.cov <- inv.cov
+> formals(ilpr_mvn)$inv.cov <- inv.cov
+> formals(llpr_mvn)$inv.cov <- inv.cov
+> formals(illpr_mvn)$inv.cov <- inv.cov
+> 
+> # Tests with just four iterations, for comparing results.  Should be
+> # the same (except for vector vs. list) within each group below.
+> 
+> cat("SHORT TESTS\n\n")
+SHORT TESTS
+
+> 
+> cat("\nj:\n");   print ((r4.j <-   jmet_mvn (4, c(0.2,0.4))) $ q)
+
+j:
+             a         b
+[1,] 0.1127857 0.2588111
+[2,] 0.4093527 0.4027798
+[3,] 0.4187456 0.4275891
+[4,] 0.3818278 0.3671399
+> cat("\nlj:\n");  print ((r4.lj <-  ljmet_mvn (4, list(a=0.2,b=0.4))) $ q)
+
+lj:
+$a
+          [,1]
+[1,] 0.1127857
+[2,] 0.4093527
+[3,] 0.4187456
+[4,] 0.3818278
+
+$b
+          [,1]
+[1,] 0.2588111
+[2,] 0.4027798
+[3,] 0.4275891
+[4,] 0.3671399
+
+> cat("\nij:\n");  print ((r4.ij <-  ijmet_mvn (4, c(0.2,0.4))) $ q)
+
+ij:
+             a         b
+[1,] 0.1127857 0.2588111
+[2,] 0.4093527 0.4027798
+[3,] 0.4187456 0.4275891
+[4,] 0.3818278 0.3671399
+> cat("\nilj:\n"); print ((r4.ilj <- iljmet_mvn (4, list(a=0.2,b=0.4))) $ q)
+
+ilj:
+$a
+          [,1]
+[1,] 0.1127857
+[2,] 0.4093527
+[3,] 0.4187456
+[4,] 0.3818278
+
+$b
+          [,1]
+[1,] 0.2588111
+[2,] 0.4027798
+[3,] 0.4275891
+[4,] 0.3671399
+
+> 
+> cat("\ns:\n");   print ((r4.s <-   smet_mvn (4, 0.5)) $ q)
+
+s:
+              a         b
+[1,]  0.0000000 -1.015310
+[2,] -0.5805613 -1.325229
+[3,] -0.8241190 -1.628141
+[4,] -0.7472234 -1.319019
+> cat("\nis:\n");  print ((r4.is <-  ismet_mvn (4, 0.5)) $ q)
+
+is:
+              a         b
+[1,]  0.0000000 -1.015310
+[2,] -0.5805613 -1.325229
+[3,] -0.8241190 -1.628141
+[4,] -0.7472234 -1.319019
+> cat("\no:\n");   print ((r4.o <-   omet_mvn (4, 0.5)) $ q)
+
+o:
+              a         b
+[1,]  0.0000000 -1.015310
+[2,] -0.5805613 -1.325229
+[3,] -0.8241190 -1.628141
+[4,] -0.7472234 -1.319019
+> cat("\nlo:\n");  print ((r4.lo <-  lomet_mvn (4, 0.5)) $ q)
+
+lo:
+$a
+           [,1]
+[1,]  0.0000000
+[2,] -0.5805613
+[3,] -0.8241190
+[4,] -0.7472234
+
+$b
+          [,1]
+[1,] -1.015310
+[2,] -1.325229
+[3,] -1.628141
+[4,] -1.319019
+
+> cat("\nilo:\n"); print ((r4.ilo <- ilomet_mvn (4, 0.5)) $ q)
+
+ilo:
+$a
+           [,1]
+[1,]  0.0000000
+[2,] -0.5805613
+[3,] -0.8241190
+[4,] -0.7472234
+
+$b
+          [,1]
+[1,] -1.015310
+[2,] -1.325229
+[3,] -1.628141
+[4,] -1.319019
+
+> 
+> cat("\nc:\n");   print ((r4.c <-   cmet_mvn (4, 1.5)) $ q)
+
+c:
+              a          b
+[1,] -0.4341924 -0.4488227
+[2,] -0.5183855 -0.6825159
+[3,] -0.1457665 -0.5845837
+[4,]  0.3536591  1.0100661
+> cat("\nlc:\n");  print ((r4.lc <-  cmet_mvn (4, 1.5)) $ q)
+
+lc:
+              a          b
+[1,] -0.4341924 -0.4488227
+[2,] -0.5183855 -0.6825159
+[3,] -0.1457665 -0.5845837
+[4,]  0.3536591  1.0100661
+> 
+> cat("\nb:\n");   print ((r4.b <-   bhmc_mvn (4, 0.2)) $ q)
+
+b:
+              a           b
+[1,] -0.1487858 -0.03273944
+[2,]  0.6127464  0.69165548
+[3,] -0.5833478 -0.46038766
+[4,]  1.0624050  2.20226099
+> cat("\nlb:\n");  print ((r4.lb <-  lbhmc_mvn (4, 0.2)) $ q)
+
+lb:
+$a
+           [,1]
+[1,] -0.1487858
+[2,]  0.6127464
+[3,] -0.5833478
+[4,]  1.0624050
+
+$b
+            [,1]
+[1,] -0.03273944
+[2,]  0.69165548
+[3,] -0.46038766
+[4,]  2.20226099
+
+> cat("\nilb:\n"); print ((r4.ilb <- ilbhmc_mvn (4, 0.2)) $ q)
+
+ilb:
+$a
+           [,1]
+[1,] -0.1487858
+[2,]  0.6127464
+[3,] -0.5833478
+[4,]  1.0624050
+
+$b
+            [,1]
+[1,] -0.03273944
+[2,]  0.69165548
+[3,] -0.46038766
+[4,]  2.20226099
+
+> cat("\nbt:\n");  print ((r4.bt <-  bhmc_traj_mvn (4, 0.2)) $ q)
+
+bt:
+              a           b
+[1,] -0.1487858 -0.03273944
+[2,]  0.6127464  0.69165548
+[3,] -0.5833478 -0.46038766
+[4,]  1.0624050  2.20226099
+> cat("\npb:\n");  print ((r4.pb <-  pbhmc_mvn (4, 0.2)) $ q)
+
+pb:
+              a           b
+[1,] -0.1487858 -0.03273944
+[2,]  0.6127464  0.69165548
+[3,] -0.5833478 -0.46038766
+[4,]  1.0624050  2.20226099
+> 
+> cat("\nl:\n");   print ((r4.l <-   lhmc_mvn (4, 0.1)) $ q)
+
+l:
+              a           b
+[1,] 0.01678369 0.003878186
+[2,] 0.10288391 0.159033153
+[3,] 0.28965740 0.359487952
+[4,] 0.12663374 0.230007564
+> cat("\nill:\n"); print ((r4.ill <- illhmc_mvn (4, 0.1)) $ q)
+
+ill:
+$a
+           [,1]
+[1,] 0.01678369
+[2,] 0.10288391
+[3,] 0.28965740
+[4,] 0.12663374
+
+$b
+            [,1]
+[1,] 0.003878186
+[2,] 0.159033153
+[3,] 0.359487952
+[4,] 0.230007564
+
+> cat("\nsl:\n");  print ((r4.sl <-  slhmc_mvn (4, 0.1)) $ q)
+
+sl:
+$a
+           [,1]
+[1,] 0.01678369
+[2,] 0.10288391
+[3,] 0.28965740
+[4,] 0.12663374
+
+$b
+            [,1]
+[1,] 0.003878186
+[2,] 0.159033153
+[3,] 0.359487952
+[4,] 0.230007564
+
+> 
+> cat("\ng:\n");   print ((r4.g <-  gibbs_mvn (4)) $ q)
+
+g:
+               a           b
+[1,] -0.13831726 -0.18170809
+[2,] -0.27081315  0.18991195
+[3,]  0.16296152 -0.05268213
+[4,]  0.08259741  0.48297044
+> cat("\nig:\n");  print ((r4.ig <- igibbs_mvn (4)) $ q)
+
+ig:
+               a           b
+[1,] -0.13831726 -0.18170809
+[2,] -0.27081315  0.18991195
+[3,]  0.16296152 -0.05268213
+[4,]  0.08259741  0.48297044
+> 
+> cat("\na:\n");   print ((r4.a <-  over_mvn (4, -0.95)) $ q)
+
+a:
+                a           b
+[1,] -0.043189549 -0.13469547
+[2,] -0.141342276 -0.17574583
+[3,] -0.005792189  0.03236752
+[4,]  0.069087774  0.32702557
+> cat("\nia:\n");  print ((r4.ia <- iover_mvn (4, -0.95)) $ q)
+
+ia:
+                a           b
+[1,] -0.043189549 -0.13469547
+[2,] -0.141342276 -0.17574583
+[3,] -0.005792189  0.03236752
+[4,]  0.069087774  0.32702557
+> 
+> # Tests with 10000 iterations, for comparing with the correct distribution.
+> 
+> cat("LONG TESTS\n\n")
+LONG TESTS
+
+> 
+> cat("j:\n");   mvn.look(r <- r10000.j <-   jmet_mvn  (10000, c(0.2,0.4)))
+j:
+m1: 0.0532  m2: 0.113  v1: 0.4341  v2: 1.723  corr: 0.943  act+: 60.2  act-: 48.1 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.6320399 
+
+> cat("lj:\n");  mvn.look(r <- r10000.lj <-  ljmet_mvn (10000, list(a=0.2,b=0.4)))
+lj:
+m1: 0.0532  m2: 0.113  v1: 0.4341  v2: 1.723  corr: 0.943  act+: 60.2  act-: 48.1 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.6320399 
+
+> cat("ij:\n");  mvn.look(r <- r10000.ij <-  ijmet_mvn (10000, c(0.2,0.4)))
+ij:
+m1: 0.0532  m2: 0.113  v1: 0.4341  v2: 1.723  corr: 0.943  act+: 60.2  act-: 48.1 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.6320399 
+
+> cat("ilj:\n"); mvn.look(r <- r10000.ilj <- iljmet_mvn(10000, list(a=0.2,b=0.4)))
+ilj:
+m1: 0.0532  m2: 0.113  v1: 0.4341  v2: 1.723  corr: 0.943  act+: 60.2  act-: 48.1 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.6320399 
+
+> 
+> cat("s:\n");   mvn.look(r <- r10000.s <-   smet_mvn (10000, 0.5))
+s:
+m1: 0.057  m2: 0.113  v1: 0.5118  v2: 2.054  corr: 0.951  act+: 32.9  act-: 27.8 
+>   cat("\n")
+
+> cat("is:\n");  mvn.look(r <- r10000.is <-  ismet_mvn (10000, 0.5))
+is:
+m1: 0.057  m2: 0.113  v1: 0.5118  v2: 2.054  corr: 0.951  act+: 32.9  act-: 27.8 
+>   cat("\n")
+
+> cat("o:\n");   mvn.look(r <- r10000.o <-   omet_mvn (10000, 0.5))
+o:
+m1: 0.057  m2: 0.113  v1: 0.5118  v2: 2.054  corr: 0.951  act+: 32.9  act-: 27.8 
+>   cat("\n")
+
+> cat("lo:\n");  mvn.look(r <- r10000.lo <-  lomet_mvn (10000, 0.5))
+lo:
+m1: 0.057  m2: 0.113  v1: 0.5118  v2: 2.054  corr: 0.951  act+: 32.9  act-: 27.8 
+>   cat("\n")
+
+> cat("ilo:\n"); mvn.look(r <- r10000.ilo <- ilomet_mvn (10000, 0.5))
+ilo:
+m1: 0.057  m2: 0.113  v1: 0.5118  v2: 2.054  corr: 0.951  act+: 32.9  act-: 27.8 
+>   cat("\n")
+
+> 
+> cat("c:\n");   mvn.look(r <- r10000.c <-   cmet_mvn (10000, 1.5))
+c:
+m1: 0.1688  m2: 0.361  v1: 0.1987  v2: 0.644  corr: 0.869  act+: 3.3  act-: 2.7 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.1032357 
+
+> cat("lc:\n");  mvn.look(r <- r10000.lc <-  cmet_mvn (10000, 1.5))
+lc:
+m1: 0.1688  m2: 0.361  v1: 0.1987  v2: 0.644  corr: 0.869  act+: 3.3  act-: 2.7 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.1032357 
+
+> 
+> cat("b:\n");   mvn.look(r <- r10000.b <-   bhmc_mvn (10000, 0.2))
+b:
+m1: -8e-04  m2: -0.001  v1: 0.5034  v2: 2.013  corr: 0.95  act+: 0.1  act-: 0.2 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.9272847 
+
+> cat("b2:\n");  mvn.look(r <- r10000.b2<-   bhmc_mvn (10000, 0.28))
+b2:
+m1: -0.0033  m2: 0.001  v1: 0.4868  v2: 1.949  corr: 0.953  act+: 0.1  act-: 5.5 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.9551343 
+
+> cat("b3:\n");  mvn.look(r <- r10000.b3<-   bhmc_mvn (10000, 0.28,rand.step=0.1))
+b3:
+m1: 0.001  m2: 0  v1: 0.4844  v2: 1.931  corr: 0.945  act+: 0.2  act-: 0.3 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.870279 
+
+> cat("lb:\n");  mvn.look(r <- r10000.lb <-  lbhmc_mvn (10000, 0.2))
+lb:
+m1: -8e-04  m2: -0.001  v1: 0.5034  v2: 2.013  corr: 0.95  act+: 0.1  act-: 0.2 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.9272847 
+
+> cat("ilb:\n"); mvn.look(r <- r10000.ilb <- ilbhmc_mvn (10000, 0.2))
+ilb:
+m1: -8e-04  m2: -0.001  v1: 0.5034  v2: 2.013  corr: 0.95  act+: 0.1  act-: 0.2 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.9272847 
+
+> cat("bt:\n");  mvn.look(r <- r10000.bt <-  bhmc_traj_mvn (10000, 0.2))
+bt:
+m1: -8e-04  m2: -0.001  v1: 0.5034  v2: 2.013  corr: 0.95  act+: 0.1  act-: 0.2 
+>   cat("mean apr:",mean(r$ave[,"apr.1"]),"\n\n")
+mean apr: 0.9272847 
+
+> 
+> cat("pb:\n");  mvn.look(r <- r10000.pb <-  pbhmc_mvn (10000, 0.2))
+pb:
+m1: -8e-04  m2: -0.001  v1: 0.5034  v2: 2.013  corr: 0.95  act+: 0.1  act-: 0.2 
+>   cat("mean apr:",mean(r$ave[,"apr.2"]),"\n\n")
+mean apr: 0.9272847 
+
+> 
+> cat("l:\n");   mvn.look(r <- r10000.l <-   lhmc_mvn (10000, 0.1))
+l:
+m1: 0.059  m2: 0.12  v1: 0.4994  v2: 1.999  corr: 0.951  act+: 79.2  act-: 68.8 
+>   cat("\n")
+
+> cat("ill:\n"); mvn.look(r <- r10000.ill <- illhmc_mvn (10000, 0.1))
+ill:
+m1: 0.059  m2: 0.12  v1: 0.4994  v2: 1.999  corr: 0.951  act+: 79.2  act-: 68.8 
+>   cat("\n")
+
+> cat("sl:\n");  mvn.look(r <- r10000.sl <-  slhmc_mvn (10000, 0.1))
+sl:
+m1: 0.059  m2: 0.12  v1: 0.4994  v2: 1.999  corr: 0.951  act+: 79.2  act-: 68.8 
+>   cat("\n")
+
+> 
+> cat("g:\n");   mvn.look(r <- r10000.g <-   gibbs_mvn (10000))
+g:
+m1: -0.0247  m2: -0.044  v1: 0.4486  v2: 1.79  corr: 0.945  act+: 16.8  act-: 13 
+>   cat("\n")
+
+> cat("ig:\n");  mvn.look(r <- r10000.ig <-  igibbs_mvn (10000))
+ig:
+m1: -0.0247  m2: -0.044  v1: 0.4486  v2: 1.79  corr: 0.945  act+: 16.8  act-: 13 
+>   cat("\n")
+
+> 
+> cat("a:\n");   mvn.look(r <- r10000.a <-   over_mvn (10000, -0.95))
+a:
+m1: -0.0041  m2: -0.007  v1: 0.5378  v2: 2.152  corr: 0.95  act+: 0.3  act-: 0.2 
+>   cat("\n")
+
+> cat("ia:\n");  mvn.look(r <- r10000.ia <-  iover_mvn (10000, -0.95))
+ia:
+m1: -0.0041  m2: -0.007  v1: 0.5378  v2: 2.152  corr: 0.95  act+: 0.3  act-: 0.2 
+>   cat("\n")
+
+> 
+> 
+> proc.time()
+    user   system  elapsed 
+1146.767   49.963 1462.048 

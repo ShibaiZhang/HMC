@@ -1,0 +1,136 @@
+GRIMS - GENERAL R INTERFACE FOR MARKOV SAMPLING
+
+Radford M. Neal, 2011.
+
+
+This R package supports Markov chain Monte Carlo (MCMC) sampling.  The
+user specifies a distribution by giving a function that computes its
+log density, or uses one of the pre-defined log density functions.  An
+MCMC run for sampling this distribution can then be done, which can
+use various pre-defined Markov chain update functions, or other update
+functions written by the user.
+
+
+THE LOG DENSITY FUNCTION AND BOUNDS
+
+The user defines the distribution to sample from by providing a
+function that computes the log of its probability density, plus any
+arbitrary constant.  Optionally, the user may also constrain the
+distribution by specifying upper and lower bounds for variables, as
+attributes of this function. 
+
+The distribution sampled may be for a single numeric vector of some
+fixed length, or it may be for a list of fixed-length vectors, with
+uniquely named elements.  Names (not necessarily unique) may also be
+given to the components of a vector making up all or part of the
+state.
+
+The log density function takes as an argument a vector or list of
+vectors, and returns the log of the probability density for that
+argument, plus some arbitrary constant.  If requested to, this
+function may also return the gradient of the log density, which is
+needed when using some update functions.  (If the function is not able
+to compute the gradient, these updates cannot be used.)
+
+A log density function can be defined so as to save information from
+the density or gradient computation, which can later be used to
+quickly recompute the log density or gradient after only some
+components have changed.  This will speed up updates such as sequences
+of Metropolis updates for single variables.  Such caching of
+information is optional - the update functions supplied with this
+package that can use this information will still work if the log
+density function doesn't provide this facility, albeit with full
+computation for every update.
+
+
+THE STATE OF THE MARKOV CHAIN
+
+In the simplest situation, the state of the Markov chain used for
+sampling consists of the same vector or list of vectors that the
+distribution of interest is defined for.
+
+However, if the distribution is for a list of vectors, the user may
+decide to fix some elements of this list to specified values.  The
+Markov chain state then consists only of the remaining elements, and
+the Markov chain samples from the conditional distribution for the
+elements that were not fixed given the specified values of the fixed
+elements.  This allows, for example, hyperparameters for a Bayesian
+model to sometimes be sampled along with the lower-level parameters,
+and sometimes set to values fixed by the user, without the model
+specification being changed.  This facility is also recommended as a
+convenient way of specifying the observed data for a Bayesian model.
+This method allows the option of instead not fixing the data, so that
+the the prior predictive distribution will be sampled from - a useful
+way of checking for programming errors.
+
+Optionally, the Markov chain state can also include a vector or list
+of vectors of "momentum" variables, associated with (and the same
+length as) the corresponding variables in the distribution of
+interest.  These momentum variables are used by methods based on
+Hamiltonian dynamics.  If such momentum variables are not included in
+the state they will be created when required, so explicitly including
+them is often not necessary.
+
+
+MARKOV CHAIN UPDATES
+
+A Markov chain update is defined by a function that takes as an
+argument an initial state and that returns a new state, which was
+produced from the initial state by a procedure that leaves its
+distribution invariant.  This distribution is specified by a function
+for computing the log probability density of the state (and perhaps
+its gradient), which is passed as another argument.  The interface
+allows for additional arguments and return values, for handling
+momentum variables, and for providing previously-computed log density
+and gradient values.  If the variables are bounded, the update
+function may handle these bounds itself; otherwise, it can rely on the
+log density function returning -Inf for out-of-bounds arguments.
+
+Specialized update functions designed for a particular distribution,
+or which implement elaborate sampling schemes involving other updates
+(eg, tempered transitions), may be passed an lpr function that takes
+as its argument the full state in its original form (possibly a list),
+and will update the state in this original form.  This lpr function
+may be the one supplied by the user, or may be a wrapper for it that
+imposes the bounds on variables.
+
+General-purpose update functions are defined for vector states, and
+are passed a function for computing the log density that takes a
+vector argument.  This is not necessarily the same as the log density
+function the user provides to specify the distribution - the top-level
+mcmc function will create a wrapper for the user-supplied log density
+function as required to interface to the update functions (for
+example, converting a list of vectors to a single vector).
+
+Update functions may take additional arguments, such as the size of a
+step to take when proposing a new state.  These arguments may be
+computed from parts of the state that are not currently being updated.
+Update functions may return additional information, such as the
+average acceptance probability for proposals.  Many update functions
+take a "rep" argument that allows the update to be repeated a
+specified number of times (with lower overhead than just doing more
+MCMC iterations using this update).
+
+Composite update functions are possible, which take other update
+functions as arguments, and use them to perform an update consisting
+of several other updates.  For example, the singlevar update performs
+a sequence of updates on single variables.  Other general-purpose
+possibilities include tempered transitions and ensemble updates.
+
+
+RUNNING A MARKOV CHAIN SIMULATION
+
+Convenient facilities are provided for doing an MCMC run with a
+specified sequence of updates, while recording states and other
+information at each iteration of the run.  A run can easily be
+extended after it has finished, if more iterations are needed.
+
+An MCMC iteration consists of some number of repetitions of a sequence
+of updates.  These updates are specified by a list of functions with
+associated arguments.  An update may be restricted to a subset of the
+elements making up the state, identified by a vector of names or
+numbers for these elements.
+
+It should be possible to implement more complex top-level MCMC methods
+that use the same update functions, such as parallel tempering runs,
+or simulations involving coupled Markov chains.

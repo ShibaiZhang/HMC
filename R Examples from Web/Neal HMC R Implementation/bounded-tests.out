@@ -1,0 +1,274 @@
+
+R version 2.13.1 (2011-07-08)
+Copyright (C) 2011 The R Foundation for Statistical Computing
+ISBN 3-900051-07-0
+Platform: i686-pc-linux-gnu (32-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # TESTS ON MULTIVARIATE NORMAL DISTRIBUTION WITH BOUNDS.
+> #
+> # Radford M. Neal, 2012.
+> 
+> source("mcmc.r")
+> source("utilities.r")
+> source("metropolis.r")
+> source("singlevar.r")
+> source("bounded_hmc.r")
+> source("pupdate.r")
+> source("mvn.r")
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # FUNCTIONS FOR SAMPLING A BOUNDED MULTIVARIATE NORMAL IN VARIOUS WAYS.  
+> 
+> 
+> # SAMPLE WITH BOUNDS USING JOINT METROPOLIS UPDATES.
+> 
+> cmet_mvn <- function (iterations, step, lower=NULL, upper=NULL, ...)
++ {
++   mcmc (structure(lpr_mvn,lower=lower,upper=upper), c(a=0, b=0), iterations, 
++         list (metropolis, step=step, rep=20),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE WITH BOUNDS USING HAMILTONIAN MONTE CARLO WITH LONG TRAJECTORY.
+> 
+> chmc_mvn <- function (iterations, step, lower=NULL, upper=NULL, ...)
++ {
++   mcmc (structure(lpr_mvn,lower=lower,upper=upper), c(a=0, b=0), iterations, 
++         list(bounded_hmc, step=step, nsteps=20),
++         ave=c("apr","reflections"), ...
++   )
++ }
+> 
+> 
+> # SAMPLE WITH BOUNDS ONE VARIABLE AT A TIME WITH ONE LEAPFROG STEP (LANGEVIN).
+> # Doesn't use singlevar.
+> 
+> clmc_mvn <- function (iterations, step, lower=NULL, upper=NULL, ...)
++ {
++   mcmc (structure(lpr_mvn,lower=lower,upper=upper), c(a=0, b=0), iterations, 
++         1, list(bounded_hmc, step=step),
++         2, list(bounded_hmc, step=step),
++         ...
++   )
++ }
+> 
+> 
+> # SAMPLE WITH BOUNDS ONE VARIABLE AT A TIME WITH ONE LEAPFROG STEP (LANGEVIN).
+> # Uses singlevar.
+> 
+> sclmc_mvn <- function (iterations, step, lower=NULL, upper=NULL, ...)
++ {
++   mcmc (structure(lpr_mvn,lower=lower,upper=upper), c(a=0, b=0), iterations, 
++         list (singlevar, list(bounded_hmc, step=step)),
++         ...
++   )
++ }
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # FUNCTION TO LOOK AT RESULTS OF THE TESTS BELOW.
+> 
+> mvn.look <- function (r)
++ { if (is.list(r$q))
++   { q1 <- r$q[[1]]
++     q2 <- r$q[[2]]
++   }
++   else
++   { q1 <- r$q[,1]
++     q2 <- r$q[,2]
++   }
++   cat("m1:",round(mean(q1),4)," m2:",round(mean(q2),3),
++       " v1:",round(var(q1),4)," v2:",round(var(q2),3),
++       " corr:",round(cor(q1,q2),3),
++       " act+:",round (2*sum(acf(q1+q2,plot=FALSE,lag.max=100)$acf)-1, 1),
++       " act-:",round (2*sum(acf(q1-q2,plot=FALSE,lag.max=100)$acf)-1, 1),
++       "\n")
++   plot(q1,q2,pch=".")
++ }
+> 
+> 
+> # --------------------------------------------------------------------
+> 
+> # SCRIPT FOR RUNNING THE TESTS.
+> 
+> inv.cov <- solve (matrix (c (0.5, 0.95, 0.95, 2.0), 2, 2))
+> 
+> formals(lpr_mvn)$inv.cov <- inv.cov
+> 
+> lower <- list (NULL, -0.5, NULL, -1.0, c(0,-0.5), -0.2,    -0.2)
+> upper <- list (NULL, NULL,  1.5,  0.8, c(1,1.5),  c(0,Inf), 0)
+> 
+> it <- 2000
+> 
+> for (i in seq_along(lower))
++ { 
++   cat("\n----",i,"\n\nBounds:\n")
++ 
++   print (rbind(lower=lower[[i]], upper=upper[[i]]))
++ 
++   cat("\ncmet:\n");
++   mvn.look(
++    assign(paste("rcmet",i,sep=""), cmet_mvn (it, 1.5, lower[[i]], upper[[i]])))
++ 
++   cat("\nchmc:\n");
++   mvn.look(
++    assign(paste("rchmc",i,sep=""), chmc_mvn (it, 0.2, lower[[i]], upper[[i]])))
++ 
++   cat("\nclmc:\n");
++   mvn.look(
++    assign(paste("rclmc",i,sep=""), clmc_mvn (20*it,0.2,lower[[i]], upper[[i]])))
++ 
++   cat("\nsclmc:\n");
++   mvn.look(
++    assign(paste("rsclmc",i,sep=""),sclmc_mvn(20*it,0.2,lower[[i]], upper[[i]])))
++ }
+
+---- 1 
+
+Bounds:
+NULL
+
+cmet:
+m1: 0.0188  m2: 0.048  v1: 0.5091  v2: 2.048  corr: 0.951  act+: 1.1  act-: 1.1 
+
+chmc:
+m1: 1e-04  m2: -0.002  v1: 0.5186  v2: 2.113  corr: 0.951  act+: 0.1  act-: 0.2 
+
+clmc:
+m1: 0.002  m2: 0.002  v1: 0.5094  v2: 2.028  corr: 0.951  act+: 133.4  act-: 119.1 
+
+sclmc:
+m1: 0.002  m2: 0.002  v1: 0.5094  v2: 2.028  corr: 0.951  act+: 133.4  act-: 119.1 
+
+---- 2 
+
+Bounds:
+      [,1]
+lower -0.5
+
+cmet:
+m1: 0.458  m2: 0.943  v1: 0.2604  v2: 0.956  corr: 0.908  act+: 0.8  act-: 0.8 
+
+chmc:
+m1: 0.424  m2: 0.888  v1: 0.2545  v2: 0.919  corr: 0.904  act+: 2.9  act-: 3 
+
+clmc:
+m1: 0.4035  m2: 0.836  v1: 0.2479  v2: 0.904  corr: 0.901  act+: 99.3  act-: 79.4 
+
+sclmc:
+m1: 0.4035  m2: 0.836  v1: 0.2479  v2: 0.904  corr: 0.901  act+: 99.3  act-: 79.4 
+
+---- 3 
+
+Bounds:
+      [,1]
+upper  1.5
+
+cmet:
+m1: -0.1699  m2: -0.352  v1: 0.367  v2: 1.362  corr: 0.93  act+: 1.3  act-: 1.2 
+
+chmc:
+m1: -0.1798  m2: -0.376  v1: 0.3402  v2: 1.273  corr: 0.926  act+: 0.2  act-: 0.6 
+
+clmc:
+m1: -0.1698  m2: -0.36  v1: 0.3455  v2: 1.308  corr: 0.927  act+: 113.3  act-: 95.6 
+
+sclmc:
+m1: -0.1698  m2: -0.36  v1: 0.3455  v2: 1.308  corr: 0.927  act+: 113.3  act-: 95.6 
+
+---- 4 
+
+Bounds:
+      [,1]
+lower -1.0
+upper  0.8
+
+cmet:
+m1: -0.0435  m2: -0.089  v1: 0.1051  v2: 0.266  corr: 0.752  act+: 1.1  act-: 1.5 
+
+chmc:
+m1: -0.0387  m2: -0.082  v1: 0.0969  v2: 0.245  corr: 0.713  act+: 0.3  act-: 0.5 
+
+clmc:
+m1: -0.0407  m2: -0.086  v1: 0.1045  v2: 0.253  corr: 0.736  act+: 33.7  act-: 16.9 
+
+sclmc:
+m1: -0.0407  m2: -0.086  v1: 0.1045  v2: 0.253  corr: 0.736  act+: 33.7  act-: 16.9 
+
+---- 5 
+
+Bounds:
+      [,1] [,2]
+lower    0 -0.5
+upper    1  1.5
+
+cmet:
+m1: 0.3597  m2: 0.638  v1: 0.059  v2: 0.236  corr: 0.675  act+: 1.1  act-: 1 
+
+chmc:
+m1: 0.3698  m2: 0.626  v1: 0.0543  v2: 0.255  corr: 0.66  act+: 2.4  act-: 3.1 
+
+clmc:
+m1: 0.3634  m2: 0.627  v1: 0.057  v2: 0.244  corr: 0.652  act+: 26.4  act-: 19.3 
+
+sclmc:
+m1: 0.3634  m2: 0.627  v1: 0.057  v2: 0.244  corr: 0.652  act+: 26.4  act-: 19.3 
+
+---- 6 
+
+Bounds:
+      [,1] [,2]
+lower -0.2 -0.2
+upper  0.0  Inf
+
+cmet:
+m1: -0.0942  m2: 0.172  v1: 0.0035  v2: 0.081  corr: 0.122  act+: 8  act-: 8.1 
+
+chmc:
+m1: -0.0929  m2: 0.243  v1: 0.0033  v2: 0.125  corr: 0.146  act+: 44.4  act-: 42.8 
+
+clmc:
+m1: -0.0892  m2: 0.163  v1: 0.0032  v2: 0.072  corr: 0.14  act+: 9.3  act-: 9.1 
+
+sclmc:
+m1: -0.0892  m2: 0.163  v1: 0.0032  v2: 0.072  corr: 0.14  act+: 9.3  act-: 9.1 
+
+---- 7 
+
+Bounds:
+      [,1]
+lower -0.2
+upper  0.0
+
+cmet:
+m1: -0.0956  m2: -0.105  v1: 0.0035  v2: 0.003  corr: 0.034  act+: 35.5  act-: 21.3 
+
+chmc:
+m1: -0.0964  m2: -0.102  v1: 0.0032  v2: 0.003  corr: -0.01  act+: 2.3  act-: 0.4 
+
+clmc:
+m1: -0.0965  m2: -0.101  v1: 0.0032  v2: 0.003  corr: 0.033  act+: 1.3  act-: 1.3 
+
+sclmc:
+m1: -0.0965  m2: -0.101  v1: 0.0032  v2: 0.003  corr: 0.033  act+: 1.3  act-: 1.3 
+> 
+> proc.time()
+    user   system  elapsed 
+2543.734  821.903 6768.891 

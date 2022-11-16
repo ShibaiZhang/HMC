@@ -1,0 +1,52 @@
+SINGLE VARIABLE UPDATE FUNCTION
+
+The singlevar update function takes a specification of an update for a
+single variable as an argument, and applies this update to the
+variables currently being updated, either in a specified order, or in
+a random permutaton of this order.  Fast incremental computation using
+cached results is done, to the extent that the lpr function used
+supports it.
+
+The singlevar function takes arguments lpr, initial, and lpr.initial
+with the same meaning as other update functions.  (These are normally
+provided automatically by mcmc.)  The seq argument specifies the
+sequence variables to update (the default is all, in order), and the
+random argument says whether this order is randomly permuted (default
+no).  The update argument (which can be given without a name if the
+others are named) specifies the update to apply, as either an update
+function or a list in which the first element is an update function
+(as for the updates passed to mcmc).  The remaining named arguments
+specify additional arguments to the update functions, as described
+below.
+
+To summarize, the keyword arguments that a user might specify for
+singlevar itself are the following:
+ 
+    seq       Sequence of indexes of variables to update.  May be in
+              any order, and may contain repetitions.  This sequence
+              will be randomly permutted if the random argument is TRUE.
+              (Default is 1:length(initial))
+
+    random    If TRUE, the order of updating is chosen randomly. If 
+              it is FALSE, components of the state vector are updated 
+              sequentially from the first to the last. (Default FALSE.)
+
+If some other keyword argument is not numeric or is numeric and
+scalar, it is passed on to the update function every time it is
+applied.  If such an argument is numeric and a vector of length the
+same as the number of variables updated, single elements of this
+vector are passed to the update function when the corresponding
+variable is updated.
+
+The value returned by singlevar is a list, which contains an element
+named final and possibly lpr, as for any update function, and other
+elements that are the concatenations of additional elements that are
+returned by the single-variable update function for each element
+(re-ordered to the original ordering if random was TRUE).  For
+example, if the state has 10 dimensions, seq is the default, and the
+single-variable update returns a scalar "apr" value, the result of
+singlevar will have an "apr" element that is a vector of length 10,
+with the names of the vector elements all being "apr" (though note
+that these names may be modified later, by the mcmc function).  Values
+for lpr for individual updates are not returned, however, only the
+value after the final update.

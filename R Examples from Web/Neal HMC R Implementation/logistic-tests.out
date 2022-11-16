@@ -1,0 +1,193 @@
+
+R version 2.13.1 (2011-07-08)
+Copyright (C) 2011 The R Foundation for Statistical Computing
+ISBN 3-900051-07-0
+Platform: i686-pc-linux-gnu (32-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+[Previously saved workspace restored]
+
+> # TESTS WITH LOGISTIC MODEL.
+> #
+> # Radford M. Neal, 2012.
+> 
+> source("mcmc.r")
+> source("utilities.r")
+> source("singlevar.r")
+> source("metropolis.r")
+> source("basic_hmc.r")
+> source("pupdate.r")
+> source("logistic.r")
+> 
+> # Specify the data, which will be conditioned on using "fix".
+> 
+> X <- matrix(c(1,3,7,2,4,9,2,6,
++               7,8,2,9,8,0,2,8), 8, 2)
+> y <-        c(0,0,1,1,0,1,1,1)
+> 
+> colnames(X) <- c("aa","bb")
+> 
+> # Function to look at results.
+> 
+> logistic.look <- function (r) 
++ { q <- as.matrix(as.data.frame(r$q))
++   print (rbind(mean=colMeans(q),sdev=sd(q)))
++   cat("\n")
++ }
+> 
+> # Sample from the prior (with X fixed as above), the easy way, and the hard way.
+> # Comparing these results is a check on correctness (see John Geweke's paper,
+> # "Getting it right: Joint distribution tests of posterior simulators").
+> 
+> cat("prior the easy way:\n"); logistic.look(
+prior the easy way:
++ rje <- mcmc (lpr_logistic, 
++          list (alpha=0, beta=numeric(ncol(X)), log.sigma=0, y=numeric(nrow(X))),
++          fix = list (X=X),
++          iterations = 5000,
++          list (sample_logistic_prior, level=0)))
+         alpha     beta.1     beta.2    log.sigma       y.1       y.2      y.3
+mean 0.1981368  0.1406762  0.4801998 -0.003709514 0.5112000 0.5032000 0.506000
+sdev 9.9447154 37.5713241 57.8541149  1.991995536 0.4999245 0.5000398 0.500014
+          y.4       y.5       y.6      y.7       y.8
+mean 0.504800 0.5126000 0.4968000 0.512000 0.5098000
+sdev 0.500027 0.4998912 0.5000398 0.499906 0.4999539
+
+> 
+> cat("prior the hard way:\n"); logistic.look(
+prior the hard way:
++ rjh <- mcmc (lpr_logistic, 
++          list (alpha=0, beta=numeric(ncol(X)), log.sigma=0, y=numeric(nrow(X))),
++          fix = list (X=X),
++          iterations = 40000,
++          list (sample_logistic_prior, level=2),
++          c("alpha","beta","log.sigma"),
++          list (singlevar, list (metropolis, step=0.5, rep=4)),
++          list (metropolis, step=0.25, rep=10),
++          list (metropolis, step=0.05, rep=10)))
+          alpha     beta.1     beta.2  log.sigma       y.1       y.2       y.3
+mean -0.6141189 -0.3998692 -0.6587806 -0.1208725 0.4615250 0.4620500 0.4685500
+sdev  9.8183949  4.7618895  5.2509730  1.8443405 0.4985237 0.4985639 0.4990162
+           y.4      y.5       y.6       y.7       y.8
+mean 0.4629500 0.463525 0.4777500 0.4574500 0.4623750
+sdev 0.4986316 0.498674 0.4995109 0.4981924 0.4985886
+
+> 
+> # Sample from the posterior given data (X and y) above.
+> 
+> init <- list (alpha=0, beta=numeric(ncol(X)), log.sigma=0)
+> 
+> iters <- 5000
+> 
+> cat("A:\n"); logistic.look(
+A:
++ r <-   mcmc (lpr_logistic, init, iters, fix = list(X=X,y=y),
++              "alpha", list (metropolis, step=0.2, rep=4),
++              "beta",  list (metropolis, step=0.2, rep=4),
++              "log.sigma",   list (metropolis, step=0.2, rep=4)))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.387816 0.2894818 -0.2849748 -1.232007
+sdev 2.383111 0.4128135  0.3503408  1.381784
+
+> 
+> cat("B:\n"); logistic.look(
+B:
++ ri <-  mcmc (ilpr_logistic, init, iters, fix = list(X=X,y=y),
++              "alpha", list (metropolis, step=0.2, rep=4),
++              "beta",  list (metropolis, step=0.2, rep=4),
++              "log.sigma",   list (metropolis, step=0.2, rep=4)))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.387816 0.2894818 -0.2849748 -1.232007
+sdev 2.383111 0.4128135  0.3503408  1.381784
+
+> 
+> cat("C:\n"); logistic.look(
+C:
++ rs <-  mcmc (lpr_logistic, init, iters, fix = list(X=X,y=y),
++              list (singlevar, list (metropolis, step=0.2, rep=4))))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.093604 0.3631937 -0.2777035 -1.107586
+sdev 2.399903 0.4838877  0.3351934  1.347935
+
+> 
+> cat("D:\n"); logistic.look(
+D:
++ rsi <- mcmc (ilpr_logistic, init, iters, fix = list(X=X,y=y),
++              list (singlevar, list (metropolis, step=0.2, rep=4))))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.093604 0.3631937 -0.2777035 -1.107586
+sdev 2.399903 0.4838877  0.3351934  1.347935
+
+> 
+> cat("E:\n"); logistic.look(
+E:
++ ri1 <- mcmc (ilpr_logistic, init, iters, fix = list(X=X,y=y),
++              "alpha", list (metropolis, step=0.2, rep=4),
++              "beta",1,list (metropolis, step=0.2, rep=4),
++              "beta",2,list (metropolis, step=0.2, rep=4),
++              "log.sigma",   list (metropolis, step=0.2, rep=4)))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.093604 0.3631937 -0.2777035 -1.107586
+sdev 2.399903 0.4838877  0.3351934  1.347935
+
+> 
+> cat("F:\n"); logistic.look(
+F:
++ rsb <- mcmc (ilpr_logistic, init, iters, fix = list(X=X,y=y),
++              "alpha", list (metropolis, step=0.2, rep=4),
++              "beta",  list (singlevar, list (metropolis, step=0.2, rep=4)),
++              "log.sigma",   list (metropolis, step=0.2, rep=4)))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.093604 0.3631937 -0.2777035 -1.107586
+sdev 2.399903 0.4838877  0.3351934  1.347935
+
+> 
+> cat("G:\n"); logistic.look(
+G:
++ rb0 <- mcmc (lpr_logistic, init, iters, fix = list(X=X,y=y), rec=c("acc","step"),
++             "alpha", "beta", list (basic_hmc, nsteps=20, rand.step=0.3,
++                                step = 0.2),
++             "alpha", "beta", list(metropolis, step=0.1),
++             "log.sigma", list (metropolis, step=0.2, rep=4)))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.432289 0.3065834 -0.3014057 -1.073243
+sdev 2.502131 0.4176357  0.3445988  1.123194
+
+> 
+> cat("H:\n"); logistic.look(
+H:
++ rb1 <- mcmc (lpr_logistic, init, iters, fix = list(X=X,y=y), rec=c("acc","step"),
++             "alpha", "beta", list (basic_hmc, nsteps=20, rand.step=0.3,
++                                step = function (s) 0.2*exp(min(0,s$log.sigma))),
++             "log.sigma", list (metropolis, step=0.2, rep=4)))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.382963 0.2641826 -0.2722631 -1.298666
+sdev 2.386975 0.3804901  0.3449158  1.293811
+
+> 
+> cat("I:\n"); logistic.look(
+I:
++ rb2 <- mcmc (lpr_logistic, init, iters, fix = list(X=X,y=y), rec=c("acc","step"),
++             "alpha", "beta", list (basic_hmc, nsteps=20, rand.step=0.3,
++                                step = function (s) list (alpha=0.2, 
++                                 beta=rep(0.2*exp(min(0,s$log.sigma)),ncol(X)))),
++             "log.sigma", list (metropolis, step=0.2, rep=4)))
+        alpha    beta.1     beta.2 log.sigma
+mean 1.491081 0.2518643 -0.2765650 -1.220286
+sdev 2.497497 0.3571248  0.3387972  1.187227
+
+> 
+> proc.time()
+    user   system  elapsed 
+ 866.622  178.915 1156.133 

@@ -1,0 +1,280 @@
+FUNCTIONS FOR CONTROLLING AN MCMC RUN
+
+The functions mcmc and more_mcmc are the top-level functions for doing
+an MCMC run.  They return the states from the simulation, along with
+other information, such as acceptance probabilities.  The distribution
+to sample from is specified by a function for the log probability
+density provided by the user (or that is one supplied with this
+package).  The MCMC updates to do each iteration are specified by
+updates functions (either supplied with this package or written by the
+user), which may be general-purpose or specialized to the particular
+distribution being sampled.
+
+
+FUNCTION TO DO AN MCMC SIMULATION
+
+    mcmc (lpr, initial, iterations, ..., updates=list(), rep=1,
+          fix=NULL, initial.p=NULL, last="lpr", rec="acc", ave="apr", 
+          lpr.initial=NULL, initial.arg=initial, seed=1, saved.rand=NULL)
+
+Does the specified number of iterations of an MCMC simulation, with
+each iteration consisting of a specified sequence of updates.
+
+Most of the arguments to mcmc are also returned as part of its result,
+so that these arguments will be available without re-specification if
+more iterations are done with the more_mcmc function (see below), and
+so that a saved result will contain documentation on what was done.
+
+Arguments are as follows:
+
+    lpr        Function for evaluating the log probability density of
+               a state (up to an arbitary additive constant), and
+               possibly its gradient.  May have attributes specifiying
+               bounds on variables.
+
+    initial    Initial state of the chain.  May be a single vector, or
+               a list of vectors.  The total length of these vectors
+               is the dimension of the state (excluding the momentum 
+               part if that exists).  The vectors may have named 
+               elements, which will be used as names for the result.
+
+    iterations The number of iterations to simulate.
+
+    ...        Zero or more arguments describing the updates to be done 
+               in an iteration.  Each argument is either an update
+               function, or a list whose first element is an update
+               function and the remaining elements arguments to it,
+               or a vector of strings, which restricts the following 
+               updates to just the parts of the state named, or a 
+               vector of integer indexes, which further restricts 
+               the part of the state updated. (See below for details.)
+
+    updates    A list of additional updates, done after those specified 
+               by the ... arguments.  Specifying updates this way may 
+               sometimes be more convenient. (Optional) 
+
+    rep        Number of times to repeat the list of updates for each
+               iteration (default 1).
+
+    fix        A list of vectors specifying parts of the state that are 
+               fixed during the simulation.  These parts will be in the 
+               list passed to the lpr function, but are not part of the 
+               Markov chain state, and not present in initial. (Optional) 
+
+    initial.p  Initial values for the momentum variables, either a vector 
+               or a list with elements that are a subset of those in 
+               initial.  Specification of initial.p also implies that 
+               these momentum variables are part of the state. (Optional) 
+
+    last       A vector of names of quantities returned by an update
+               function, whose values should be recorded for the last
+               update in the last repetition of the sequence of update 
+               functions.  (Default is "lpr" only.)
+
+    rec        A vector of names of quantities returned by update
+               functions, whose values should be recorded after all 
+               updates in the last repetition of the sequence of update 
+               functions.  (Default is "acc" only.)
+
+    ave        A vector of names of quantities returned by update
+               functions, whose values after each update should be averaged
+               over the repetitions of the sequence of update functions.  
+               (Default is "apr" only.)
+
+    lpr.initial The value of lpr for the initial state.  Must, of course,
+                be correct, or wrong answers will result!  (Optional)
+
+    initial.arg The initial argument for the sampling run, typically the
+                same as initial, but provided for use by more_mcmc (see
+                below).  (Default is initial.)
+
+    seed       The random number seed for the run.  This should be set by 
+               the user to different values if more than one MCMC run is 
+               done for the same problem.  Ignored if saved.rand is set.
+               (Default is 1.)
+
+    saved.rand  If not NULL, a saved state of the random number generator
+                (wrapped in an environment, to suppress a long display,
+                and allow error checking). This state is restored instead 
+                of the state being set from the seed.  (Optional) 
+
+The result of mcmc is a list with the following elements:
+
+    final      Final state of variables (except momentum) after all 
+               iterations, with names as in initial.  Does not include 
+               variables that are fixed, only those in "initial".
+
+    final.p    Final state of momentum variables after all iterations
+               (absent if momentum is not saved as part of the state).
+               Includes only variables that were specified by initial.p.
+
+    q          Matrix or list of matrices holding the state (except 
+               momentum) after each iteration, with one row for each
+               iteration, and column names taken from the "initial" 
+               argument.
+
+    p          Matrix or list of matrices holding the momentum part of 
+               the state after each iteration, with column names taken
+               from the corresponding parts of "initial".  (Absent if 
+               momentum is not saved as part of the state.)
+
+    last       A matrix with one row for each iteration and column names
+               from the argument last, except columns for quantities 
+               that aren't returned by the last update function called
+               are omitted.  No last element is present if the last 
+               argument was NULL.
+
+    rec        A matrix with one row for each iteration and column
+               names from the rec argument, repeated for each update
+               function, omitting values that aren't returned.  These
+               values are from the last repetition of the updates.  
+               No rec element is present if the rec argument is NULL.
+
+    ave        A matrix with one row for each iteration and column
+               names from the ave argument, repeated for each update
+               function, omitting values that aren't returned.  These
+               values are averages over all repetitions.  No ave 
+               element is present if the ave argument is NULL.
+
+    lpr.final  The value of lpr for the final state.
+
+    saved.rand State of the random number generator after the last 
+               iteration.
+
+    lpr.arg    The lpr argument passed.
+    initial.arg The initial.arg argument passed, usually the same as initial.
+    rep.arg    The rep argument passed (may be the default of 1).
+    seed.arg   The seed argument passed (may be the default of 1).
+    fix.arg    The fix argument passed, or absent.
+    last.arg   The last argument passed, or absent.
+    rec.arg    The rec argument passed, or absent
+    ave.arg    The ave argument passed, or absent
+
+    updates    The MCMC updates done (ie, a list of what was passed as 
+               ... concatenated with the updates argument).
+
+As described above, the updates specified via the ... arguments or via
+the updates argument may include vectors of strings or integers that
+restrict subsequent updates to a portion of the state.  When a string
+vector is encountered, it is concatenated with any immediately
+preceding string vectors and is then used to restrict updates to the
+subset of the state consisting only of list elements with names in
+this vector of strings.  An integer vector is concatenated with any
+immediately preceding integer vectors and is then used to restrict
+updates to a subset of the set of values that would otherwise have
+been updated according to the usual R indexing convention (eg, 1:10
+specifies only the first ten values, and -10 specifies all except the
+tenth value).  Integer restrictions are allowed only when the state is
+a vector, or the state is a list with one element, or the current
+string restriction specifies just one element of the state.
+
+A entry of TRUE in the list of updates will cancel all restrictions.
+A string restriction cancels any previous string restriction (that
+doesn't immediately precede it) and any integer restriction.  An
+integer restriction cancels any previous restriction specified by an
+integer vector (that doesn't immediately precede it), but it does not
+cancel the current string restriction.
+
+Updates from ... or in the updates argument are specified by either an
+update function or a list with the first element being an update
+function and the remaining elements being arguments for this update
+function.  For special purpose update functions (with a "special"
+attribute that is TRUE), these arguments are passed on unchanged.
+Unnamed arguments of general-purpose update functions are also passed
+on unchanged.  A named argument of a general-purpose update function
+may be
+
+   o  A numeric scalar.  This will be passed unchanged to the update 
+      function, which might interpret it as applying to every value in 
+      the state, or (like "rep") it might have a meaning that is not
+      related to individual values in the state.  This scalar may
+      have attributes, which may be of any type, and whose meaning
+      (if any) will depend on the update function.
+
+   o  A list, if the state is a list, in which case it must have
+      elements for all parts of the state being updated, that are
+      numeric scalars (applying to that whole part) or numeric vectors 
+      of the same length as that part of the state.  This list will be 
+      converted to a vector according to the current string and integer
+      restrictions before it is passed to the update function.
+
+   o  A numeric vector, if the state is a vector, in which case it must
+      either be scalar or of the same length as the state.  If not a
+      scalar, it will be subsetted with the current integer restriction 
+      (if any) before being passed.
+
+   o  A function, in which case this function will be called each time
+      the update is done to provide the value to be passed to the 
+      update function.
+
+   o  Something else (eg, a logical vector or a string), which will be
+      passed unchanged to the update function.
+
+If the state is a vector, a named argument that is a function will be
+called before each update with a single argument that is a copy of the
+state in which positions that are being updated (according to to the
+integer restriction) are set to NA, except if there is no integer
+restriction, no argument will be passed.  It should return either a
+scalar or a vector of values for the positions being updated.
+
+If the state is a list, a named argument that is a function will be
+called with a single argument that is a list containing all elements
+of the state not being updated (according to the string restriction),
+plus fixed elements.  If there is an integer restriction as well, the
+element being updated will appear as an element in this argument, with
+NA in positions being updated.  It should return a scalar, or a vector
+of the same length as the total number of values being updated, or a
+list with elements corresponding to the parts being updated, in which
+each element is either a scalar or a vector of length equal to the
+size of that part, or the size of the subset being updated (when there
+is an integer restriction).  If the state is a list and there is no
+current restriction, the argument passed will be a list of only the
+fixed elements (which might be an empty list).
+
+When mcmc creates a wrapper for the lpr function it is passed, the
+wrapper function will have a grad argument if the original lpr
+function did.  If the original lpr function had a ch.value argument,
+any wrapper passed to a specialized update function will have the same
+set of ch.value, ch.elem, ch.pos, and lpr.value arguments as the
+original lpr function.  A wrapper for lpr passed to a general-purpose
+update function will not have ch.value or related arguments if the
+state is a list and is not currently restricted to just one element,
+even if the original lpr function has these arguments.  If the state
+is a vector, the wrapper will have ch.value, ch.pos, and lpr.value
+arguments if the original lpr function did.  If the state is a list
+and only one element is currently being updated (possibly with an
+integer restriction), the wrapped lpr function will have ch.value,
+ch.pos, and lpr.value arguments if the original lpr function has
+ch.value, ch.elem, ch.pos, and lpr.value arguments.
+
+It is permissible for the initial.p argument to have only a subset of
+the elements in initial, in which case momentum variables are retained
+in the state for only that subset.  However, at a point where an
+update function with an initial.p argument is used, it must be that
+either all of the elements in the current string restriction are
+present in initial.p, or none of them are present (in which case no
+initial.p argument will be passed to the update function).
+
+
+DO MORE MCMC ITERATIONS OF AN MCMC SIMULATION
+
+    more_mcmc (previous, iterations)
+
+Extends an MCMC run by doing more iterations.  
+
+Arguments are as follows:
+
+    previous    The result of a previous mcmc or more_mcmc call
+
+    iterations  The number of additional iterations to do
+
+The result returned is of the same form as is returned by the mcmc
+function.
+
+Doing a run of n iterations with mcmc, and then extending by m more
+iterations with more_mcmc should produced the same result as doing n+m
+iterations with mcmc would have.  Note that the state of the random
+number generator at the end of the first run is saved, and restored
+for the additional iterations, and that the initial state and the seed
+that were passed to mcmc are passed on to more_mcmc for inclusion in
+its result (as initial.arg and seed.arg elements).

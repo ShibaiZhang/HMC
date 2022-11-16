@@ -1,0 +1,155 @@
+INTERFACE OF FUNCTIONS FOR PERFORMING UPDATES
+
+Each iteration of an MCMC run consists of one or more updates, with
+each update being specified by a function and possibly a list of
+arguments to this function.  Several update functions are supplied
+with this package.  Other update functions may be written by the user.
+
+Update functions may either be general-purpose or specialized (to a
+particular distribution, or for a particularly complex purpose).
+Specialized update functions receive the entire state in its original
+form (a vector or a list), whereas general-purpose update functions
+always receive the state (or part of it) in vector form.  An update
+function is marked as specialized by having an attribute "special"
+with value TRUE attached to it.  If this attribute is absent or FALSE,
+the function is general-purpose.
+
+All update functions should leave invariant the distribution defined
+by the lpr function they are passed.  This lpr function will either be
+the one provided by the user, or will be a wrapper that calls the
+user-provided lpr function.  A general-purpose update function will be
+passed an lpr function that computes the log density for a vector,
+even if the user-supplied lpr function computes the log density for a
+list of vectors (the mcmc function creates a wrapper function if
+necessary).  A special-purpose update function may receive the
+original lpr function, taking the state in its original form (possibly
+a list of vectors), or a wrapper that takes the same arguments as the
+original but imposes the bounds specified by the "upper" and "lower"
+attributes of the lpr function.
+
+The lpr function passed to an update function will have attributes
+specifying any bounds on variables in the state.  The update function
+may impose these bounds itself, or it may rely on the lpr function
+returning -Inf for disallowed values, except that if an update
+function has the attribute "handles.bounds" with value TRUE, it MUST
+handle bounds itself.  The main mcmc function will pass such an update
+function an lpr function that does not necessarily return -Inf for
+disallowed values (and hence may be faster).
+
+A composite update function is one that takes other update functions
+as arguments.  These may be written by the user, or be supplied with
+this package, as is the singlevar function for performing a series of
+updates on single variables.
+
+
+ARGUMENTS AND RETURN VALUE FOR UPDATE FUNCTIONS
+
+An update function must be defined with the following as its first two
+arguments:
+
+    lpr          Function returning the log probability density of a 
+                 vector, plus an arbitrary constant, perhaps with some
+                 attributes (such as the gradient) attached.  May
+                 have attributes specifying bounds for the variables.  
+                 Will take the state in vector form for a general-purpose 
+                 update function, or in original form for a specialized 
+                 update function.
+
+    initial      Initial value for the state (not including momentum).
+
+An update function may also have one or both of the arguments below,
+with the meanings as described:
+
+    initial.p    The initial state of the momentum variables.  Not 
+                 present if the update does not use momentum variables.
+
+    lpr.initial  The value of lpr(initial).  May be omitted or NULL; if 
+                 so, the function must compute this value if it is needed.  
+                 May have attributes attached, such as the gradient.
+
+The arguments above will be provided automatically by the mcmc
+function when it calls an update function.  An update function may
+also take additional arguments, as specified by the user.  The
+meanings of these arguments are specific to each update function, but
+the following are common to a number of updates:
+
+    rep          Number of times to repeat the update (default 1).
+
+    step         Stepsize or stepsizes.  May be a scalar or a vector of 
+                 length equal to the dimensionality of the state.
+
+    rand.step    Amount of random jitter for step (a scalar or a vector 
+                 the length of initial) (default 0).  The passed value 
+                 for step is multiplied by 
+
+                   exp (runif (length(rand.step), -rand.step, rand.step))
+
+                 Note that if rand.step is a scalar, all components are 
+                 jittered  by the same factor; otherwise rand.step must
+                 be the same dimension as step.  Note also that jittering 
+                 is done only once, even if rep is greater than 1.
+
+For a general-purpose update function, any such additional argument
+should either be a numeric scalar (applying to the whole state), or a
+numeric vector of the same length as the state, or something that is
+not numeric, not a list, and not a function (eg, it could be a logical
+vector or a string).  These limitations result from how the top-level
+mcmc function processes such arguments before passing them on to an
+update function.
+
+Update functions return a list, containing the following elements:
+
+    final        The new state after the update.
+
+    final.p      The new state of the momentum variables after the update.
+                 (Not present if there is no initial.p argument.)
+    
+Additional elements may also be present in the list returned.  The
+meanings of these are specific to each update functions, but the
+following are common to a number of updates:
+
+    lpr          The value of lpr(final).  May have attributes, such as 
+                 the gradient.  Returned by most (but not necessarily
+                 all) update functions.
+
+    step         The stepsize or stepsizes used for the updates, after 
+                 any random jittering (a scalar or vector).  
+
+    acc          0 or 1, indicating if the last (or only) update was
+                 accepted (1) or rejected (0).
+
+    apr          The average acceptance probability for updates done.  
+                 Note that this is not the same as the fraction of
+                 actual acceptances.
+
+    delta        The change in -lpr or in the Hamiltonian that was the 
+                 basis for the last (or only) accept/reject decision.
+
+Any such returned values should be numeric.  Update functions should
+be consistent in what values they return.  They should not return a
+value some times but not other times (though the value returned may be
+NA).
+
+
+UTILITY ROUTINES FOR UPDATE FUNCTIONS.
+
+The following functions are provided to help with writing update
+functions.
+
+    process_rep_argument (rep)
+
+        Checks that the rep argument is a numeric scalar, rounds 
+        it to an integer, and checks that it is at least one.  Returns
+        the argument (which may have changed from rounding).
+
+    process_step_arguments (n, step, rand.step)
+
+        Processes the step and rand.step arguments used by many update
+        functions.  Passed the length of the (vector) state as the first 
+        argument.  Checks the step and rand.step arguments for validity,
+        and if they are valid returns step, after possible jittering.
+
+    process_nsteps_argument (nsteps)
+
+        Checks that the nsteps argument passed is valid - ie, that it is
+        a single positive integer.

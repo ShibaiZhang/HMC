@@ -1,0 +1,150 @@
+INTERFACE OF LOG PROBABILITY DENSITY FUNCTIONS
+
+The distribution to sample from is specified by a function for
+evaluating the log of its probability density.  The value returned by
+such a log density function may have attributes with additional
+information.  Some functions are able to return the gradient of the
+log density in this way, if requested to.  Some functions record
+intermediate results of computations as attributes of the log density,
+allowing fast incremental re-computatation of the log density when
+only some variables are changed.
+
+Attributes of an lpr function may be used to impose bounds on
+variables, as documented below.
+
+Care is needed when writing a log density function in order to avoid
+floating-point overflow or underflow.  Functions to help with this are
+documented below.
+
+
+THE LOG DENSITY FUNCTION
+
+The user specifies a distribution by providing a log density function
+whose return value is the log of the probability density of its first
+argument, plus any arbitrary constant.  The value returned may have
+attributes attached to it, which are ignored when it is used for its
+numerical value, but which can be accessed to obtain additional
+information.
+
+The log density function takes the arguments documented below.  Only
+the first of these is required, but a log density function without the
+others will not fully support all update functions. 
+
+    value     A vector or list of vectors, which is the value for 
+              which the log density is required, or is the value 
+              which is changed according to ch.elem, ch.pos, and 
+              ch.value to get the value for which the log density
+              is required.
+
+    grad      If present and TRUE, the gradient of the log density is 
+              attached to the returned value as the "grad" attribute.  
+              If values are lists, the gradient returned may be a list
+              with only a subset of elements, with other parts of the
+              gradient not being computed. 
+
+    ch.value  If present, a vector giving the new value replacing 
+              part of the value argument, as specified by the ch.elem  
+              and ch.pos arguments.
+
+    ch.elem   The name of an element of the list passed as the value 
+              argument, indicating that this element is to be replaced
+              by ch.value to get the value for which the log density 
+              is required.  Should not be supplied if value is a 
+              vector rather than a list.
+
+    ch.pos    A vector of indexes (perhaps of length one) at which
+              the vector specified by ch.elem (or value itself, if
+              it is a vector) is replaced by ch.value to get the value 
+              for which the log density is required.  If omitted, the 
+              entire vector is replaced.
+
+    lpr.value The log density at "value", for use in quickly computing 
+              the log density at the changed value specified by the 
+              arguments above.  Often, the attributes of lpr.value (not
+              its numerical value) are what is useful. 
+
+If the ch.value argument is present, the lpr.value argument and at
+least one of the ch.elem and ch.pos arguments and should also be
+present.  If the state is a list, ch.pos should not be present without
+ch.elem.
+
+A log density function with a grad argument must be prepared for this
+argument to be absent (eg, by providing a default value of FALSE).  If
+grad is absent or FALSE, the log density returned should not have a
+"grad" attribute attached.  If a "grad" attribute is attached to the
+log density that is returned, it may be removed or altered before the
+log density value is passed as the lpr.value argument of a subsequent
+call, so incremental computations should not rely on this attribute.
+(Information should be recorded by attaching other attributes instead,
+which may of course include a copy of the "grad" attribute under
+another name.)
+
+The log density value returned may be -Inf for points with zero
+probability density.  The gradient returned in this case is up to the
+lpr function to decide (a gradient pointing toward the support of the
+distribution may be desirable).
+
+
+BOUNDS ON VARIABLES.
+
+An lpr function may impose bounds (or other constraints) on variables
+by simply returning -Inf for out-of-bound values.  However, an lpr
+function may instead (or also) have attributes that specify upper or
+lower bounds on variables.  If the state is a list, it is possible to
+impose bounds on only a subset of the list elements.
+
+The following attributes may be attached to an lpr function for this
+purpose:
+
+    lower      A vector or list of vectors with elements that are a 
+               subset of those in the state, giving lower limits on 
+               variables (which may be -Inf).  The lower limit itself
+               is a valid value (unless it is -Inf).  A scalar limit 
+               applies to all of the vector; otherwise the limit vector 
+               must be the same length as in the state.
+
+    upper      Like lower, but for upper limits (which may be +Inf).
+
+    imposed    If present and TRUE, the lpr function will return -Inf
+               when passed a value that violates any of the bounds.
+               If absent or FALSE, the main mcmc function will create a
+               wrapper function to impose the bounds, and call 
+               the lpr function only with values that do not violate
+               them.  The wrapper will return a zero gradient (if one
+               is requested) when a bound is violated.
+
+
+FUNCTIONS FOR AVOIDING OVERFLOW WHEN WRITING LPR AND GRAD FUNCTIONS
+
+The following functions may be helpful in avoiding overflow or
+underflow when writing an lpr function.  They implement summation or
+averaging operations on positive numbers that are represented by their
+logs.
+
+    log_add_exp(...)
+
+Adds numbers represented by their logs.  Computes the log of the sum
+of the exponentials of its arguments.  The arguments may be vectors or
+matrices, in which case this operation is carried out separately on
+each element.  The arguments must all have the same dimensions, or be
+scalar.  The computation is done in a manner that guarantees that the
+result is valid even when directly computing the exponentials would
+result in overflow or underflow.
+
+    log_sum_exp(...)
+
+Sums vectors of numbers represented by their logs.  Computes the log
+of the sum of the exponentials of all the elements in all its
+arguments.  The computation is done in a manner that guarantees that
+the result is valid even when directly computing the exponentials
+would result in overflow or underflow.
+
+    log_average_exp (log.values, weights)
+
+Computes a weighted average of values represented by their logs.
+Takes a vector values and a vector of weights the same length, and
+returns the log of the weighted average of the exponentials of the
+values.  This is done in a manner that works even if exponentiating
+the values would result in overflow or underflow.  The weights must be
+non-negative and not all zero, but need not sum to one (they are
+normalized to sum to one by log.average.exp).
