@@ -1,4 +1,5 @@
 library(shape)# for good arrow heads
+library(geosphere) # for bearing
 
 
 HMC <- function (U, grad_U, epsilon, L, current_q , ... ) {
@@ -67,7 +68,7 @@ U <- function(q, X_bearing_diff) {
 # gradient function
 grad_U <- function(q, X_bearing_diff) {
   rho <- exp(q)
-  n = length(X_distance)
+  n = length(X_bearing_diff)
   d_rho = n*cosh(rho)/sinh(rho) - sum(sinh(rho)/(cosh(rho)-cos(X_bearing_diff)))
   return(-d_rho)
 }
@@ -89,7 +90,7 @@ X_bearing_diff <- X_bearing[-1] - X_bearing[-length(X_bearing)]
 
 init_rho = 0.9 #dunif(1, 0, 2)
 
-n_step = 20
+n_step = 1000
 q_history <- matrix(nrow=n_step, ncol = 1)
 q_history[1,] <- log(init_rho)
 L <- 35 
