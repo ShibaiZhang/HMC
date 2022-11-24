@@ -63,18 +63,29 @@ grad_U <- function(q,X) {
 true_kappa = 1.6
 true_lambda = 5.5
 X <- rweibull(1200, true_kappa, true_lambda)
-n_step = 100
+n_step = 1000
 q_history <- matrix(nrow=n_step, ncol = 2)
-q_history[1,] <- c(log(true_kappa+0.1), log(true_lambda+0.1))
-L <- 20 
-epsilon <- 0.01 # 0.01 / 0.03
+q_history[1,] <- c(log(true_kappa+5.1), log(true_lambda+3.1))
+L <- 40 
+epsilon <- 0.0005 # 0.01 / 0.03
 
 for ( i in 2:n_step ) {
   q_history[i,] <- HMC( U , grad_U , epsilon , L , q_history[i-1,], X )
 }
 
-samples = q_history[(0.1*n_step):n_step]
+
+samples = exp(q_history[(0.1*n_step):n_step, ])
+effective_sample = unique(samples)
+effective_sample_size = nrow(effective_sample)
+accept_rate = effective_sample_size / nrow(samples)
+accept_rate
+
+
+lambda_est = samples[,1]
+kappa_est = samples[,2]
+
 # estimated lambda
-exp(mean(q_history[(0.1*n_step):n_step,1]))
+mean(lambda_est)
 # estimated kappa
-exp(mean(q_history[(0.1*n_step):n_step,2]))
+mean(kappa_est)
+

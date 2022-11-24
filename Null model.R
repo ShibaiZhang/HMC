@@ -1,3 +1,5 @@
+library(geosphere) # for bearing
+
 
 HMC = function (U, grad_U, epsilon, L, current_q, X_distance, X_bearing_diff)
 {
@@ -90,14 +92,14 @@ X_bearing <- direction(X)
 X_bearing_diff <- X_bearing[-1] - X_bearing[-length(X_bearing)]
 
 init_kappa = 1.5 #dunif(1, 0, 5)
-init_lambda = 5.2 #dunif(1, 0, 10)
-init_rho = 1.2 #dunif(1, 0, 2)
+init_lambda = 4 #dunif(1, 0, 10)
+init_rho = 1.5 #dunif(1, 0, 2)
 
 n_step = 1000
 q_history <- matrix(nrow=n_step, ncol = 3)
 q_history[1,] <- c(log(init_kappa), log(init_lambda), log(init_rho)) #kappa, lambda, rho
-L <- 35 
-epsilon <- 0.001
+L <- 40 
+epsilon <- 0.0005
 
 for ( i in 2:n_step ) {
   q_history[i,] <- HMC(U, grad_U, epsilon, L, q_history[i-1,], X_distance, X_bearing_diff)
@@ -105,18 +107,21 @@ for ( i in 2:n_step ) {
 
 samples = exp(q_history[(0.1*n_step):n_step, ])
 effective_sample = unique(samples)
-effective_sample_size = length(effective_sample)
-accept_rate = effective_sample_size / length(samples)
+effective_sample_size = nrow(effective_sample)
+accept_rate = effective_sample_size / nrow(samples)
 accept_rate
 
+lambda_est = samples[,1]
+kappa_est = samples[,2]
+rho_est = samples[,3]
+
 # estimated lambda
-mean(samples[,1])
+mean(lambda_est)
 # estimated kappa
-mean(samples[,2])
+mean(kappa_est)
 # estimated rho
-mean(samples[,3])
+mean(rho_est)
 
-
-
-
-
+hist(lambda_est, xlab='lambda', main='Histogram of estimated lambda')
+hist(kappa_est, xlab='kappa', main='Histogram of estimated kappa')
+hist(rho_est, xlab='rho', main='Histogram of estimated rho')
