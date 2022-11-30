@@ -84,12 +84,18 @@ grad_U <- function(q, X_distance, X_bearing_diff) {
 }
 
 
-X <- locationAll[,1:2]
+# X <- locationAll[,1:2]
+# 
+# X_distance <- distance(X)
+# X_distance <- X_distance[-1]
+# X_bearing <- direction(X)
+# X_bearing_diff <- X_bearing[-1] - X_bearing[-length(X_bearing)]
 
-X_distance <- distance(X)
-X_distance <- X_distance[-1]
-X_bearing <- direction(X)
-X_bearing_diff <- X_bearing[-1] - X_bearing[-length(X_bearing)]
+true_kappa = 1.6
+true_lambda = 5.5
+X_distance <- rweibull(1200, true_kappa, true_lambda)
+X_bearing_diff <- rwrappedcauchy(1200, rho=exp(-1))
+
 
 init_kappa = 1.5 #dunif(1, 0, 5)
 init_lambda = 4 #dunif(1, 0, 10)
@@ -125,3 +131,11 @@ mean(rho_est)
 hist(lambda_est, xlab='lambda', main='Histogram of estimated lambda')
 hist(kappa_est, xlab='kappa', main='Histogram of estimated kappa')
 hist(rho_est, xlab='rho', main='Histogram of estimated rho')
+
+
+lambda_mc = q_history[,1]
+kappa_mc = q_history[,2]
+rho_mc = q_history[,3]
+plot(lambda_mc, type='l', main='Markov Chain of Lambda')
+plot(kappa_mc, type='l', main='Markov Chain of Kappa')
+plot(rho_mc, type='l', main='Markov Chain of Rho')
